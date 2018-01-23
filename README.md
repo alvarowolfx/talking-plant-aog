@@ -13,7 +13,7 @@ To use it we need to download and install it from the official website. Follow t
 
 ### BOM
 
-* Comming soon
+* Coming soon
 
 ### Schematic
 
@@ -32,4 +32,4 @@ To use it we need to download and install it from the official website. Follow t
 
 ### References
 
-* Comming soon
+* Coming soon
