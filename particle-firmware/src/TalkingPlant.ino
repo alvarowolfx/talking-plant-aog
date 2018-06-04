@@ -22,6 +22,7 @@ SYSTEM_MODE(AUTOMATIC);
 #define PIXEL_TYPE WS2812B
 
 #define MOISTURE_PIN A0
+#define MOISTURE_POWER_PIN D3
 #define LIGHT_PIN A1
 #define WATER_RELAY_PIN D5
 #define LIGHT_RELAY_PIN D6
@@ -55,7 +56,7 @@ unsigned long lastSync = millis();
 
 Timer stateTimer(60*1000, shouldSyncStateFunc);
 Timer envTimer(15*1000, shouldUpdateEnviromentFunc);
-Timer adcTimer(5*1000, shouldUpdateMoistureAndLightFunc);
+Timer adcTimer(1*1000, shouldUpdateMoistureAndLightFunc);
 Timer relaysTimer(1*1000, shouldCheckRelaysFunc);
 
 void shouldSyncStateFunc(){
@@ -76,21 +77,37 @@ void shouldCheckRelaysFunc(){
 
 
 void updateEnviroment() {
-  Particle.publish("DEBUG","Checking Environment");
+  //Particle.publish("DEBUG","Checking Environment");
   state.temperature = bmp.readTemperature();
   state.pressure = bmp.readPressure();
   state.altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
   //state.humidity = bmp.readHumidity();
 }
 
-void updateMoistureAndLight(){
-  Particle.publish("DEBUG","Checking moisture and light");
-  int oldMoisture = state.moisture;
-  state.moisture = analogRead(MOISTURE_PIN);
-  state.light = analogRead(LIGHT_PIN);
+float sampleAnalogRead(int pin, int samples){
+  int sum = 0;
+  for(int i = 0; i < samples; i++){
+    sum += analogRead(pin);
+    delay(10);
+  }
+  return sum/samples;
+}
 
-  int diff = abs(oldMoisture - state.moisture);
-  if(diff > 400){
+void updateMoistureAndLight(){
+  //Particle.publish("DEBUG","Checking moisture and light");
+  int oldMoisture = state.moisture;
+  int oldLight = state.light;
+
+  digitalWrite(MOISTURE_POWER_PIN, HIGH); // Turn on moisture sensor
+  delay(10);
+  state.moisture = 100 - (100 * sampleAnalogRead(MOISTURE_PIN,10)/4095.00);
+  digitalWrite(MOISTURE_POWER_PIN, LOW); // Turn off moisture sensor
+
+  state.light = 100 * sampleAnalogRead(LIGHT_PIN,10)/4095.00;
+
+  int moistureDiff = abs(oldMoisture - state.moisture);
+  int lightDiff = abs(oldLight - state.light);
+  if(moistureDiff > 10 || lightDiff > 10){
     syncState();
   }
 
@@ -100,16 +117,16 @@ void updateMoistureAndLight(){
 void updateDisplay(){
 
   uint32_t color = strip.Color(100, 0, 0); //RED
-  if (state.moisture < 180*4) {
+  if (state.moisture > 66) {
     color = strip.Color(0, 0, 100); // BLUE
-  } else if (state.moisture < 400*4) {
+  } else if (state.moisture > 33) {
     color = strip.Color(0, 100, 0); // GREEN
   }
 
-  int steps = (4096/PIXEL_COUNT);
-  int value = (4096 - state.moisture) / steps;
+  int steps = round(100/PIXEL_COUNT);
+  int value = max(1, round(state.moisture/steps));
   strip.clear();
-  for (int i = 0; i < value; i++) {
+  for (int i = 0; i < value && i < PIXEL_COUNT; i++) {
     strip.setPixelColor(i /* pixel */, color);
   }
   strip.show();
@@ -193,19 +210,24 @@ String getJsonState(){
 }
 
 void syncState(){
-  Particle.publish("state", getJsonState(), PRIVATE);
+  String output = getJsonState();
+  int end = output.indexOf('}');
+  String trimmedOutput = output.substring(0,end+1);
+  Particle.publish("state", trimmedOutput, PRIVATE);
 }
 
 // setup() runs once, when the device is first turned on.
 void setup() {
   Serial.begin(9600);
-  Particle.publish("DEBUG",F("Talking Plant project started"));
+  //Particle.publish("DEBUG",F("Talking Plant project started"));
 
-  pinMode(LIGHT_PIN, INPUT);
-  pinMode(MOISTURE_PIN, INPUT);
+  //pinMode(LIGHT_PIN, INPUT);
+  //pinMode(MOISTURE_PIN, INPUT);
   pinMode(WATER_RELAY_PIN, OUTPUT);
+  pinMode(MOISTURE_POWER_PIN, OUTPUT);
   pinMode(LIGHT_RELAY_PIN, OUTPUT);
 
+  digitalWrite(MOISTURE_POWER_PIN, LOW); // Turn off
   digitalWrite(WATER_RELAY_PIN, HIGH); // Turn off
   digitalWrite(LIGHT_RELAY_PIN, HIGH); // Turn off
 
@@ -230,7 +252,7 @@ void setup() {
     stateTimer.start();
     relaysTimer.start();
   }else{
-    Particle.publish("DEBUG","Could not find a valid BMP280 sensor, check wiring!");
+    //Particle.publish("DEBUG","Could not find a valid BMP280 sensor, check wiring!");
   }
 
   Particle.function("syncState", forceSyncState);
