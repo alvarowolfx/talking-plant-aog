@@ -1,141 +1,79 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const { DialogflowApp } = require('actions-on-google');
-const googleapis = require('googleapis');
 
-const ACTION_WELCOME = 'input.welcome';
-const ACTION_STATUS = 'status';
-const ACTION_WATER_ON = 'water.on';
-const ACTION_WATER_OFF = 'water.off';
+const { dialogflow, DialogflowConversation } = require('actions-on-google');
 
-admin.initializeApp(functions.config().firebase);
-//const db = admin.firebase();
+const CloudIotCoreDevice = require('./devices/cloudiotcore');
+const ParticleDevice = require('./devices/particle');
+const SmartPlant = require('./plant');
+const Conversation = require('./conversation');
+
+admin.initializeApp();
+const db = admin.database();
 
 const DEVICE_ID = 'esp8266_DA7A48';
 const PROJECT_ID = process.env.GCLOUD_PROJECT;
 const REGION = 'us-central1';
 const REGISTRY = 'talking-plant-registry';
 
-/**
- * @param {DialogflowApp} assistant
- */
-function welcomeHandler(assistant, state) {
-  let currentClient = null;
-  getCloudIoTClient()
-    .then(client => {
-      currentClient = client;
-      let now = Date.now() / 1000;
-      let config = { waterUntil: now + 30 };
-      return sendConfigToDevice(client, DEVICE_ID, config);
-    })
-    .then(response => {
-      console.log('SendConfigToDevice:', response);
-      return getDeviceState(currentClient, DEVICE_ID);
-    })
-    .then(device => {
-      const { state } = device;
-      console.log('State:', state);
-      if (state.watering) {
-        assistant.ask("I'm taking a shower.");
-        return;
-      }
-      if (state.lightningUp) {
-        assistant.ask("I'm taking a sun bath.");
-        return;
-      }
+const PARTICLE_DEVICE_ID = 'pale-monkey';
+const PARTICLE_DEVICE_INTERNAL_ID = '180028000347363333343435';
+const PARTICLE_ACCESS_TOKEN = 'YOUR_ACCESS_TOKEN';
 
-      let status = state.moisture < 200 ? 'feeling bad' : 'feeling awesome';
+const device = new CloudIotCoreDevice(REGION, PROJECT_ID, REGISTRY, DEVICE_ID);
 
-      assistant.ask(`I'm ${status}, thanks for asking.`);
-    })
-    .catch(err => {
-      console.log('Catch', err);
-      assistant.tell('Something went wrong when watering the plant.');
-    });
-}
-
-exports.dialogflowFirebaseFulfillment = functions.https.onRequest(
-  (req, res) => {
-    const assistant = new DialogflowApp({ request: req, response: res });
-
-    const actionMap = new Map();
-    actionMap.set(ACTION_WELCOME, welcomeHandler);
-    //actionMap.set(ACTION_ORDER_PIZZA, orderPizzaHandler);
-    //actionMap.set(ACTION_USER_DATA, userDataHandler);
-    assistant.handleRequest(actionMap);
-  }
+const deviceParticle = new ParticleDevice(
+  PARTICLE_DEVICE_ID,
+  PARTICLE_DEVICE_INTERNAL_ID,
+  PARTICLE_ACCESS_TOKEN
 );
 
-function getFullDeviceName(deviceId) {
-  return `projects/${PROJECT_ID}/locations/${REGION}/registries/${REGISTRY}/devices/${deviceId}`;
-}
+const plant = new SmartPlant(deviceParticle, db);
 
-function getDeviceState(client, deviceId) {
-  const device_name = getFullDeviceName(deviceId);
+const conversation = new Conversation(plant);
+const app = conversation.getDialogFlowApp();
 
-  return new Promise((resolve, reject) => {
-    client.projects.locations.registries.devices.get(
-      {
-        name: device_name
-      },
-      (err, response) => {
-        if (!err) {
-          resolve(response);
-          return;
-        }
-        reject(err);
-      }
-    );
+/**
+ * Configure Dialogflow Webhook
+ */
+exports.dialogflowFirebaseFulfillment = functions.https.onRequest(app);
+
+/**
+ * Receive data from pubsub, then
+ * Write telemetry raw data to bigquery
+ * Maintain last data on firebase realtime database
+ */
+exports.receiveTelemetry = functions.pubsub
+  .topic('telemetry-topic')
+  .onPublish((event, context) => {
+    const attributes = event.attributes;
+    const message = event.json;
+
+    const deviceId = attributes.deviceId || attributes.device_id; // Particle send with underline
+
+    const data = {
+      moisture: message.moisture,
+      temperature: message.temperature,
+      light: message.light,
+      watering: message.watering,
+      lightningUp: message.lightningUp,
+      deviceId: deviceId,
+      timestamp: context.timestamp
+    };
+
+    return updateCurrentDataFirebase(data);
   });
-}
 
-function sendConfigToDevice(client, deviceId, config) {
-  const device_name = getFullDeviceName(deviceId);
-
-  const data = new Buffer(JSON.stringify(config), 'utf-8');
-  const binaryData = data.toString('base64');
-
-  return new Promise((resolve, reject) => {
-    client.projects.locations.registries.devices.modifyCloudToDeviceConfig(
-      {
-        name: device_name,
-        resource: {
-          version_to_update: 0,
-          binary_data: binaryData
-        }
-      },
-      (err, response) => {
-        if (!err) {
-          resolve(response);
-          return;
-        }
-        reject(err);
-      }
-    );
-  });
-}
-
-const API_SCOPES = ['https://www.googleapis.com/auth/cloud-platform'];
-const API_VERSION = 'v1';
-const DISCOVERY_API = 'https://cloudiot.googleapis.com/$discovery/rest';
-const SERVICE_NAME = 'cloudiot';
-const DISCOVERY_URL = `${DISCOVERY_API}?version=${API_VERSION}`;
-
-function getCloudIoTClient() {
-  return new Promise((resolve, reject) => {
-    googleapis.auth.getApplicationDefault((err, auth, projectId) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      googleapis.discoverAPI(DISCOVERY_URL, { auth }, (err, service) => {
-        if (!err) {
-          resolve(service);
-        } else {
-          reject(err);
-        }
-      });
-    });
+/**
+ * Maintain last status in firebase
+ */
+function updateCurrentDataFirebase(data) {
+  return db.ref(`/devices/${data.deviceId}`).set({
+    moisture: data.moisture,
+    temperature: data.temperature,
+    light: data.light,
+    watering: data.watering,
+    lightningUp: data.lightningUp,
+    lastTimestamp: data.timestamp
   });
 }
