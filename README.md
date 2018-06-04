@@ -2,9 +2,22 @@
 
 ## Overview
 
-This project will teach you how to talk with plants using IoT and Actions on Google. Project build using an ESP8266 running MongooseOS and Google Cloud IoT Core.
+This project will teach you how to talk with plants using IoT and Actions on Google.
+
+On the hardware part this project will have two version:
+
+* One using a Particle Photon board and Cloud PubSub integration with Particle Cloud.
+* Another one build using an ESP8266 running MongooseOS and Google Cloud IoT Core
+
+### Upload firware to Particle board
+
+The folder for this firware is `particle-firmware`.
+
+* Work in progress
 
 ### Upload firmware with Mongoose OS Tools
+
+The folder for this firware is `firmware`.
 
 To use it we need to download and install it from the official website. Follow the installation instructions on https://mongoose-os.com/docs/quickstart/setup.html.
 
