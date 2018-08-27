@@ -1,67 +1,67 @@
-const Particle = require('particle-api-js');
+const Particle = require( 'particle-api-js' );
 
 class ParticleDevice {
-  constructor(deviceId, internalId, accessToken) {
-    this._accessToken = accessToken;
-    this._client = new Particle();
-    this._deviceId = deviceId;
-    this._internalId = internalId;
+  constructor( deviceId, internalId, accessToken ) {
+    this.accessToken = accessToken;
+    this.client = new Particle();
+    this.deviceId = deviceId;
+    this.internalId = internalId;
     this.type = 'Particle';
   }
 
   connect() {
-    return Promise.resolve(true);
+    return Promise.resolve( true );
   }
 
   getId() {
-    return this._internalId;
+    return this.internalId;
   }
 
   getDeviceState() {
-    if (!this._client) {
-      throw new Error('Device not connected');
+    if ( !this.client ) {
+      throw new Error( 'Device not connected' );
     }
 
-    return this._client
-      .getEventStream({
-        deviceId: this._deviceId,
-        name: 'state',
-        auth: this._accessToken
-      })
-      .then(stream => {
-        return new Promise((resolve, reject) => {
-          stream.on('event', result => {
-            resolve(result.data);
+    return this.client
+      .getEventStream( {
+        deviceId : this.deviceId,
+        name : 'state',
+        auth : this.accessToken
+      } )
+      .then( ( stream ) => {
+        return new Promise( ( resolve, reject ) => {
+          stream.on( 'event', ( result ) => {
+            resolve( result.data );
             stream.destroy();
-          });
-        });
-      });
+          } );
+        } );
+      } );
   }
 
-  sendConfigToDevice(config) {
-    if (!this._client) {
-      throw new Error('Device not connected');
+  sendConfigToDevice( config ) {
+    if ( !this.client ) {
+      throw new Error( 'Device not connected' );
     }
 
-    const keys = Object.keys(config);
+    const keys = Object.keys( config );
 
-    if (keys.length !== 1) {
-      throw new Error('Only one key per call.');
+    if ( keys.length !== 1 ) {
+      throw new Error( 'Only one key per call.' );
     }
 
     const name = keys[0];
-    const argument = String(config[name]);
+    const argument = String( config[name] );
 
     const options = {
-      deviceId: this._deviceId,
+      deviceId : this.deviceId,
       name,
-      auth: this._accessToken,
+      auth : this.accessToken,
       argument
     };
 
-    console.log('Sending Config to device with options', options);
+    console.log( 'Sending Config to device with options', options );
 
-    return this._client.callFunction(options);
+    return this.client.callFunction( options );
   }
 }
 

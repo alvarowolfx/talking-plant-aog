@@ -54,7 +54,7 @@ bool shouldCheckRelays = false;
 
 unsigned long lastSync = millis();
 
-Timer stateTimer(60*1000, shouldSyncStateFunc);
+Timer stateTimer(5*60*1000, shouldSyncStateFunc);
 Timer envTimer(15*1000, shouldUpdateEnviromentFunc);
 Timer adcTimer(1*1000, shouldUpdateMoistureAndLightFunc);
 Timer relaysTimer(1*1000, shouldCheckRelaysFunc);
