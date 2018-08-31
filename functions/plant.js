@@ -46,8 +46,8 @@ class SmartPlant {
   }
 
   getCurrentState() {
-    // return this._device.getDeviceState();
-    return this._db
+    // return this.device.getDeviceState();
+    return this.db
       .ref( `/devices/${this.device.getId()}` )
       .once( 'value' )
       .then( ( snapshot ) => {

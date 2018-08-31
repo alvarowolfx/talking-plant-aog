@@ -69,7 +69,7 @@ class CloudIoTCoreDevice {
     if ( !this.client ) {
       throw new Error( 'Device not connected' );
     }
-    const deviceName = this._getFullDeviceName();
+    const deviceName = this.getFullDeviceName();
 
     const data = Buffer.from( JSON.stringify( config ), 'utf-8' );
     const binaryData = data.toString( 'base64' );

@@ -56,7 +56,7 @@ class Conversation {
             "I'm feeling good, but it's always good to take a shower."
           );
         }
-        return this.plant.waterOn( 30 );
+        return this.plant.waterOn( 3 );
         
       } );
   }
