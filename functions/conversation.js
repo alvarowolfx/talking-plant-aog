@@ -136,13 +136,13 @@ class Conversation {
         const temp = state.temperature;
         let env = '';
         if ( temp > 32 ) {
-          env = 'is very hot';
+          env = 'very hot';
         } else if ( temp < 20 ) {
           env = 'a bit cold';
         } else {
           env = 'nice';
         }
-        const msg = `The weather around here is ${env}, according to my calculations is around ${temp} degrees celsius`;
+        const msg = `The weather around here is ${env}, according to my calculations is around ${temp.toFixed( 0 )} degrees celsius`;
         conv.ask( msg );
       } )
       .catch( err => this.errorHandler( err, conv ) );
@@ -180,6 +180,8 @@ class Conversation {
           } else {
             status += "I'm feeling bad, but thanks for asking.";
           }
+        } else if ( state.moisture < 66 ) {
+          status += "I'm feeling good, thanks for asking.";
         } else {
           status += "I'm feeling awesome, thanks for asking.";
         }
