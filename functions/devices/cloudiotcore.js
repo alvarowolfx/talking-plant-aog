@@ -1,4 +1,4 @@
-const googleapis = require( 'googleapis' );
+const { google } = require( 'googleapis' );
 
 // const API_SCOPES = [ 'https://www.googleapis.com/auth/cloud-platform' ];
 const API_VERSION = 'v1';
@@ -94,23 +94,13 @@ class CloudIoTCoreDevice {
     } );
   }
 
-  getCloudIoTClient() {
-    return new Promise( ( resolve, reject ) => {
-      googleapis.auth.getApplicationDefault( ( err, auth, projectId ) => {
-        if ( err ) {
-          reject( err );
-          return;
-        }
-
-        googleapis.discoverAPI( DISCOVERY_URL, { auth }, ( err, service ) => {
-          if ( !err ) {
-            resolve( service );
-          } else {
-            reject( err );
-          }
-        } );
-      } );
-    } );
+  getCloudIoTClient() {    
+    return google.auth.getApplicationDefault().then( ( { credential } ) => {              
+      google.options( {
+        auth : credential
+      } )
+      return google.discoverAPI( DISCOVERY_URL )
+    } )
   }
 }
 
